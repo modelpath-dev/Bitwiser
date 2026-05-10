@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+web/node_modules/
+web/dist/
+
+# Build artifacts
+vendor/
+compressed/
+
+# Local config
+.claude/
+
+# Notes (not for repo)
+implementation.md
+implementation.txt
