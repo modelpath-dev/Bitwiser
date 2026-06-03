@@ -57,6 +57,21 @@ Hardware: **Apple M3 Max (40-core GPU), 64 GB** · `llama.cpp` build `b4327` · 
  
 ---
 
+## Benchmark methodology
+ 
+Credibility lives here. State exactly what you did so anyone can reproduce or attack it.
+ 
+- **Hardware:** Apple M3 Max, 40-core GPU, 64 GB unified memory, macOS 15.x. *(Swap in yours.)*
+- **Runtime:** `llama.cpp` build `b4327`, Metal backend, `-ngl 99`, Flash Attention `-fa 1`.
+- **Perplexity:** `llama-perplexity` on **WikiText-2 raw test** (~245K tokens, ctx 512). Same context length across all precisions.
+- **Importance matrix:** computed from WikiText-2 **train** split, 100 chunks, via `llama-imatrix`. State your corpus — generic vs. domain-matched changes results.
+- **Throughput:** decode tok/s over 128-token generations, averaged across 3 runs after a discarded warm-up.
+- **Memory:** peak resident set during decode.
+- **Baselines:** FP16 (ceiling) and Q4_K_M (the quant people actually ship) included so 1-bit is judged against a real alternative, not just full precision.
+**Controlled for:** GPU warm-up, identical context length across precisions, fixed seed, identical prompt set. **Not controlled:** thermal throttling on sustained runs (single-shot numbers only) — noted so the reader isn't misled.
+ 
+---
+
 ## Run (single-process)
 
 ```bash
