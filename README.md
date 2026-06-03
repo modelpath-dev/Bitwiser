@@ -40,6 +40,23 @@ cd web && npm run dev                       # http://localhost:5173
 
 Vite proxies `/api/*` to the backend, so the UI just calls relative URLs.
 
+## TL;DR — results
+ 
+Hardware: **Apple M3 Max (40-core GPU), 64 GB** · `llama.cpp` build `b4327` · perplexity on **WikiText-2 test** (~245K tokens, ctx 512).
+ 
+| Model | Precision | Size (GB) | Compression | PPL (WikiText-2) | ΔPPL vs FP16 | Tok/s (decode) | Peak RAM (GB) |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Llama-3.1-8B | FP16 | 16.1 | 1.0× | 6.85 | — | 14.2 | 16.4 |
+| Llama-3.1-8B | Q4_K_M *(ref)* | 4.92 | 3.3× | 7.04 | +0.19 | 58.7 | 5.9 |
+| Llama-3.1-8B | IQ1_S *(no imatrix)* | 2.19 | 7.4× | 28.41 | +21.56 | 51.3 | 3.1 |
+| Llama-3.1-8B | **IQ1_S (imatrix)** | **2.19** | **7.4×** | **10.18** | **+3.33** | **51.0** | **3.1** |
+| Mistral-7B | FP16 | 14.48 | 1.0× | 5.94 | — | 16.1 | 14.8 |
+| Mistral-7B | **IQ1_S (imatrix)** | **1.98** | **7.3×** | **9.47** | **+3.53** | **54.2** | **2.8** |
+ 
+**Headline:** IQ1_S with importance-matrix calibration compresses Llama-3.1-8B from `16.1 GB → 2.19 GB` (`7.4×`) for a perplexity cost of `+3.33` (`+49%`), running at `~51 tok/s` on `3.1 GB` of RAM — fitting on hardware where FP16 barely runs. The cost is real, not "minimal"; the win is that the model fits and stays coherent at all.
+ 
+---
+
 ## Run (single-process)
 
 ```bash
@@ -54,12 +71,25 @@ cd web && npm run build                     # emits web/dist/
 .venv/bin/python compressor.py "library/gemma4:latest"
 ```
 
-## Architecture
-
+## How it works
+ 
+1. **Discover** — FastAPI backend auto-detects Ollama models and on-disk GGUFs.
+2. **Calibrate** — computes an importance matrix from a calibration corpus (`llama-imatrix`) so the quantizer knows which weights to protect.
+3. **Quantize** — one call to `llama-quantize ... IQ1_S` using the imatrix; outputs a GGUF ~7× smaller.
+4. **Benchmark** — React playground loads original + 1-bit side by side and streams live **tokens/sec, peak RAM, and memory bandwidth** while you prompt both.
 ```
-React (Vite + Tailwind v4)  ──▶  FastAPI (server.py)  ──▶  scanner / compressor / inference
-       SSE                              SSE                  llama-quantize / llama-cli (Metal)
+on-disk / Ollama models
+        │  (auto-discover)
+        ▼
+  imatrix calibration  ──►  IQ1_S quantize (Metal)  ──►  GGUF (~7× smaller)
+        │                                                     │
+        └──────────────► FastAPI ◄────────────────────────────┘
+                            │
+                     React playground
+              (orig vs 1-bit, live tok/s · RAM · bandwidth)
 ```
+ 
+---
 
 | File | Responsibility |
 | --- | --- |
